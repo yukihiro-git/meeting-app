@@ -3,150 +3,105 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>GIPS Light Edition</title>
+    <title>GIPS Mobile Final</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Noto+Sans+JP:wght@400;700;900&display=swap');
         
-        :root {
-            --bg-main: #f1f5f9;
-            --panel-bg: #ffffff;
-            --text-main: #1e293b;
-            --accent-blue: #2563eb;
-            --accent-rose: #e11d48;
-            --accent-emerald: #10b981;
-        }
-
-        body { 
-            background-color: var(--bg-main); 
-            color: var(--text-main); 
-            font-family: 'Noto Sans JP', sans-serif;
-            height: 100vh;
-            overflow: hidden;
-        }
-
+        body { background-color: #f1f5f9; color: #1e293b; font-family: 'Noto Sans JP', sans-serif; height: 100vh; overflow: hidden; }
         .font-mono-ai { font-family: 'Orbitron', sans-serif; }
+        
+        /* 話者チップ */
+        .speaker-dock { display: flex; gap: 8px; overflow-x: auto; padding: 12px; background: #fff; border-bottom: 1px solid #e2e8f0; }
+        .speaker-chip { flex: 0 0 auto; padding: 8px 16px; border-radius: 12px; background: #f8fafc; font-size: 12px; font-weight: 700; border: 2px solid #e2e8f0; color: #64748b; }
+        .speaker-chip.active { background: #2563eb; color: #fff; border-color: #2563eb; }
 
-        /* 話者リスト（ライトモード用） */
-        .speaker-dock {
-            display: flex; gap: 10px; overflow-x: auto; padding: 12px 16px;
-            background: var(--panel-bg); border-bottom: 1px solid #e2e8f0;
-        }
-
-        .speaker-chip {
-            flex: 0 0 auto; padding: 10px 18px; border-radius: 14px;
-            background: #f8fafc; font-size: 13px; font-weight: 700;
-            border: 2px solid #e2e8f0; color: #64748b; transition: all 0.2s;
-        }
-
-        .speaker-chip.active {
-            background: var(--accent-blue); color: #fff;
-            border-color: var(--accent-blue); box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
-        }
-
-        /* アジェンダトレイ */
-        #agendaTray {
-            position: fixed; top: 0; left: 0; width: 100%; background: var(--panel-bg);
-            z-index: 100; transform: translateY(-100%); transition: transform 0.4s ease;
-            padding: 80px 24px 24px; border-bottom: 4px solid var(--accent-blue);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-        }
-        #agendaTray.open { transform: translateY(0); }
+        /* 議題編集モーダル（見切れ防止） */
+        #agendaModal { position: fixed; inset: 0; background: #fff; z-index: 200; display: none; flex-direction: column; }
+        #agendaModal.open { display: flex; }
 
         /* 議事録ドロワー */
-        #reportDrawer {
-            position: fixed; bottom: 0; left: 0; width: 100%; height: 85vh;
-            background: var(--panel-bg); transform: translateY(calc(100% - 70px));
-            transition: transform 0.4s cubic-bezier(0.1, 0.7, 0.1, 1);
-            z-index: 80; border-radius: 32px 32px 0 0;
-            box-shadow: 0 -15px 40px rgba(0,0,0,0.08); border: 1px solid #e2e8f0;
-        }
-        #reportDrawer.open { transform: translateY(10%); }
+        #reportDrawer { position: fixed; bottom: 0; left: 0; width: 100%; height: 85vh; background: #fff; transform: translateY(calc(100% - 60px)); transition: transform 0.4s cubic-bezier(0.1, 0.7, 0.1, 1); z-index: 80; border-radius: 32px 32px 0 0; box-shadow: 0 -10px 40px rgba(0,0,0,0.05); }
+        #reportDrawer.open { transform: translateY(15%); }
 
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        
-        .card-shadow { box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
     </style>
 </head>
 <body class="flex flex-col">
 
-    <div id="toastContainer"></div>
-
-    <div class="pt-10 bg-white">
+    <div class="pt-10 bg-white shadow-sm">
         <div class="speaker-dock no-scrollbar" id="speakerDock">
             <button onclick="setSpeaker(null)" id="btn-default" class="speaker-chip active">全員</button>
-            </div>
+        </div>
     </div>
 
     <main class="flex-1 flex flex-col p-6 overflow-hidden">
-        <div class="flex justify-between items-center mb-6" onclick="toggleAgendaTray()">
+        <div class="flex justify-between items-start mb-6" onclick="openAgendaModal()">
             <div class="flex-1">
-                <p class="text-[11px] font-bold text-blue-600 uppercase tracking-widest mb-1">Current Agenda <i class="fa-solid fa-chevron-down ml-1"></i></p>
+                <p class="text-[10px] font-bold text-blue-600 uppercase tracking-widest mb-1">Active Agenda <i class="fa-solid fa-pen-to-square ml-1"></i></p>
                 <h2 id="currentTitle" class="text-xl font-black text-slate-900 leading-tight">議題未設定</h2>
             </div>
-            <div class="bg-rose-50 p-3 rounded-2xl border border-rose-100 text-right">
-                <p class="text-[9px] font-bold text-rose-500 uppercase tracking-tighter">Lost Cost</p>
+            <div class="bg-rose-50 p-3 rounded-2xl border border-rose-100 text-right min-w-[80px]">
+                <p class="text-[8px] font-bold text-rose-500 uppercase tracking-tighter">Cost</p>
                 <p class="text-xl font-mono-ai font-bold text-rose-600">¥<span id="totalCost">0</span></p>
             </div>
         </div>
 
-        <div class="relative flex items-center justify-center mb-8">
+        <div class="relative flex items-center justify-center mb-6">
             <svg class="w-64 h-64">
-                <circle class="text-slate-100" stroke-width="10" stroke="currentColor" fill="transparent" r="110" cx="128" cy="128"/>
+                <circle class="text-slate-100" stroke-width="8" stroke="currentColor" fill="transparent" r="110" cx="128" cy="128"/>
                 <circle id="devCircle" class="text-blue-600 transition-all duration-700" stroke-width="12" stroke-dasharray="691" stroke-dashoffset="691" stroke-linecap="round" stroke="currentColor" fill="transparent" r="110" cx="128" cy="128"/>
             </svg>
             <div class="absolute flex flex-col items-center">
                 <span id="timerDisplay" class="text-6xl font-mono-ai font-bold text-slate-900 tracking-tighter">00:00</span>
-                <span id="devPercent" class="text-[10px] font-bold text-slate-400 mt-2 tracking-widest uppercase">Deviation 0%</span>
+                <span id="devPercent" class="text-[10px] font-bold text-slate-400 mt-2 uppercase tracking-widest">Deviation 0%</span>
             </div>
         </div>
 
-        <div class="bg-white rounded-3xl p-5 border border-slate-200 card-shadow min-h-[100px] flex items-center justify-center text-center">
-            <p id="liveTranscript" class="text-sm text-slate-500 italic leading-relaxed">音声入力を待機しています...</p>
+        <div class="bg-white rounded-3xl p-4 border border-slate-200 shadow-sm min-h-[80px] flex items-center justify-center text-center italic text-sm text-slate-500">
+            <p id="liveTranscript">音声を待機中...</p>
         </div>
     </main>
 
-    <div id="reportDrawer">
-        <div onclick="toggleReport()" class="h-[70px] flex flex-col items-center justify-center">
-            <div class="w-12 h-1.5 bg-slate-200 rounded-full"></div>
-            <span class="text-xs font-bold text-slate-400 mt-2 uppercase tracking-tighter italic">Minute Log & Summary</span>
+    <div id="agendaModal">
+        <div class="p-6 pt-12 flex justify-between items-center border-b">
+            <h3 class="text-xl font-black text-slate-900">議題の構成</h3>
+            <button onclick="closeAgendaModal()" class="text-slate-400 text-2xl"><i class="fa-solid fa-xmark"></i></button>
         </div>
-        <div class="flex-1 overflow-y-auto px-6 pb-48">
-            <div id="summaryLog" class="space-y-4 pt-4"></div>
-            <div id="fullLog" class="mt-10 pt-8 border-t border-slate-100 space-y-3 font-mono text-[11px] text-slate-400"></div>
+        <div class="flex-1 overflow-y-auto p-6 space-y-4" id="agendaInputList">
+            </div>
+        <div class="p-6 bg-slate-50 border-t space-y-3">
+            <button onclick="addAgendaRow()" class="w-full py-4 bg-white border-2 border-slate-200 rounded-2xl text-slate-600 font-bold text-sm">+ 新しい議題を追加</button>
+            <button onclick="saveAgendas()" class="w-full py-5 bg-blue-600 text-white font-black rounded-2xl text-lg shadow-xl">設定を保存して戻る</button>
+        </div>
+    </div>
+
+    <div id="registerModal" class="fixed inset-0 bg-slate-900/40 z-[150] hidden flex items-center justify-center p-6 backdrop-blur-md">
+        <div class="w-full bg-white p-8 rounded-[40px] text-center border-2 border-blue-50">
+            <div id="regIndicator" class="w-20 h-20 rounded-full bg-slate-50 mx-auto mb-6 flex items-center justify-center text-3xl text-slate-300 border-2 border-slate-100 transition-all"><i class="fa-solid fa-microphone"></i></div>
+            <h3 class="text-xl font-black text-slate-900 mb-2">話者登録</h3>
+            <p class="text-sm text-slate-500 mb-8">「私は〇〇です」と<br>スマホに向かって話してください。</p>
+            <button id="regBtn" onclick="startAutoRegister()" class="w-full py-5 bg-blue-600 text-white font-black rounded-2xl shadow-xl mb-4">録音開始</button>
+            <button onclick="closeRegisterModal()" class="text-slate-400 font-bold text-sm">キャンセル</button>
+        </div>
+    </div>
+
+    <div id="reportDrawer">
+        <div onclick="toggleReport()" class="h-[60px] flex flex-col items-center justify-center"><div class="w-10 h-1 bg-slate-200 rounded-full"></div></div>
+        <div class="flex-1 overflow-y-auto px-6 pb-40">
+            <div id="summaryLog" class="space-y-4 pt-2"></div>
+            <div id="fullLog" class="mt-8 pt-8 border-t border-slate-100 space-y-2 font-mono text-[10px] text-slate-400"></div>
         </div>
     </div>
 
     <div class="fixed bottom-10 left-0 w-full px-8 flex gap-4 z-[90]">
-        <button id="mainBtn" onclick="toggleMeeting()" class="flex-[3] h-18 bg-blue-600 text-white rounded-3xl flex items-center justify-center gap-4 shadow-[0_15px_30px_rgba(37,99,235,0.3)] active:scale-95 transition-all">
-            <i class="fa-solid fa-play text-xl"></i>
-            <span class="text-lg font-black uppercase tracking-tight">Meeting Start</span>
+        <button id="mainBtn" onclick="toggleMeeting()" class="flex-[3] h-18 bg-blue-600 text-white rounded-3xl flex items-center justify-center gap-3 shadow-xl active:scale-95 transition-all">
+            <i class="fa-solid fa-play text-xl"></i><span class="text-lg font-black uppercase">Start</span>
         </button>
-        <button onclick="openRegisterModal()" class="flex-1 h-18 bg-white text-blue-600 rounded-3xl flex items-center justify-center active:scale-95 transition-all border-2 border-blue-50 shadow-lg">
+        <button onclick="openRegisterModal()" class="flex-1 h-18 bg-white text-blue-600 rounded-3xl flex items-center justify-center border-2 border-blue-50 shadow-lg active:scale-95 transition-all">
             <i class="fa-solid fa-user-plus text-2xl"></i>
         </button>
-    </div>
-
-    <div id="agendaTray">
-        <div class="flex justify-between items-center mb-6">
-            <h3 class="text-slate-900 font-black text-xl">議題の構成</h3>
-            <button onclick="addAgendaRow()" class="text-blue-600 font-bold text-sm">+ 議題を追加</button>
-        </div>
-        <div id="agendaInputList" class="space-y-3 mb-8"></div>
-        <button onclick="saveAgendas()" class="w-full py-5 bg-blue-600 rounded-2xl text-lg font-black text-white shadow-xl">この内容で開始準備</button>
-    </div>
-
-    <div id="registerModal" class="fixed inset-0 bg-slate-900/40 z-[150] hidden flex items-center justify-center p-8 backdrop-blur-md">
-        <div class="w-full bg-white p-10 rounded-[48px] shadow-2xl text-center relative border border-white">
-            <div id="regIndicator" class="w-24 h-24 rounded-full bg-slate-50 mx-auto mb-6 flex items-center justify-center text-4xl text-slate-300 border-2 border-slate-100 transition-all">
-                <i class="fa-solid fa-microphone"></i>
-            </div>
-            <h3 class="text-2xl font-black text-slate-900 mb-2 tracking-tight">話者の音声登録</h3>
-            <p class="text-sm text-slate-500 mb-10 leading-relaxed">「私は<span class="text-blue-600 font-bold">〇〇</span>です」と<br>スマホに向かって名乗ってください。</p>
-            <button id="regBtn" onclick="startAutoRegister()" class="w-full py-5 bg-blue-600 text-white font-black rounded-2xl shadow-xl mb-4">聞き取り開始</button>
-            <button onclick="closeRegisterModal()" class="text-slate-400 font-bold text-sm">戻る</button>
-        </div>
     </div>
 
 <script>
@@ -174,35 +129,46 @@
         }
     };
 
-    function toggleAgendaTray() { document.getElementById('agendaTray').classList.toggle('open'); }
+    function openAgendaModal() { document.getElementById('agendaModal').classList.add('open'); }
+    function closeAgendaModal() { document.getElementById('agendaModal').classList.remove('open'); }
     function addAgendaRow(title="", time=10) {
         const div = document.createElement('div');
-        div.className = "flex gap-2 items-center agenda-row";
-        div.innerHTML = `<input type="text" placeholder="議題の内容" value="${title}" class="flex-[3] bg-slate-50 border-2 border-slate-100 rounded-xl p-4 text-slate-900 font-bold outline-none focus:border-blue-500"><input type="number" value="${time}" class="flex-[1] bg-slate-50 border-2 border-slate-100 rounded-xl p-4 text-slate-900 font-mono font-bold outline-none text-center">`;
+        div.className = "flex gap-2 items-center agenda-row-container p-4 bg-slate-50 rounded-2xl border border-slate-100";
+        div.innerHTML = `<input type="text" placeholder="議題" value="${title}" class="flex-[3] bg-transparent font-bold text-slate-900 outline-none"><div class="flex flex-[1] items-center gap-1 border-l pl-3"><input type="number" value="${time}" class="w-full bg-transparent font-mono font-bold text-blue-600 text-right outline-none"><span class="text-[10px] text-slate-400 font-bold uppercase">min</span></div>`;
         document.getElementById('agendaInputList').appendChild(div);
     }
     function saveAgendas() {
-        const rows = document.querySelectorAll('.agenda-row');
+        const rows = document.querySelectorAll('.agenda-row-container');
         agendas = Array.from(rows).map(r => ({ title: r.querySelectorAll('input')[0].value || "未設定", time: parseInt(r.querySelectorAll('input')[1].value) || 1 }));
-        currentIdx = 0; updateAgendaUI(); toggleAgendaTray();
+        currentIdx = 0; updateAgendaUI(); closeAgendaModal();
     }
     function updateAgendaUI() {
-        const a = agendas[currentIdx];
-        document.getElementById('currentTitle').innerText = a.title;
-        timeLeft = a.time * 60; updateUI();
+        if(agendas[currentIdx]) {
+            document.getElementById('currentTitle').innerText = agendas[currentIdx].title;
+            timeLeft = agendas[currentIdx].time * 60; updateUI();
+        }
     }
 
     function toggleMeeting() {
         const btn = document.getElementById('mainBtn');
         if (!isRunning) {
-            isRunning = true; btn.innerHTML = '<i class="fa-solid fa-stop text-xl"></i> <span class="text-lg font-black uppercase">Finish</span>';
+            if(agendas.length === 0) { openAgendaModal(); return; }
+            isRunning = true; btn.innerHTML = '<i class="fa-solid fa-stop"></i> <span class="uppercase">Finish</span>';
             btn.classList.replace('bg-blue-600', 'bg-rose-600');
             recognition.start(); timerInterval = setInterval(tick, 1000);
         } else {
-            isRunning = false; btn.innerHTML = '<i class="fa-solid fa-play text-xl"></i> <span class="text-lg font-black uppercase">Meeting Start</span>';
+            isRunning = false; btn.innerHTML = '<i class="fa-solid fa-play"></i> <span class="uppercase">Start</span>';
             btn.classList.replace('bg-rose-600', 'bg-blue-600');
             recognition.stop(); clearInterval(timerInterval);
         }
+    }
+
+    function tick() {
+        totalSeconds++;
+        document.getElementById('totalCost').innerText = Math.floor((totalSeconds * 20000) / 3600).toLocaleString();
+        if (timeLeft > 0) timeLeft--; else deviationScore += 0.4;
+        deviationScore = Math.min(100, deviationScore + 0.05);
+        updateUI();
     }
 
     function startAutoRegister() {
@@ -218,45 +184,35 @@
                 speakers.push(name);
                 const chip = document.createElement('button');
                 chip.className = "speaker-chip";
-                chip.innerText = name;
-                chip.onclick = () => setSpeaker(name);
+                chip.innerText = name; chip.onclick = () => setSpeaker(name);
                 document.getElementById('speakerDock').appendChild(chip);
                 if (navigator.vibrate) navigator.vibrate(50);
-                setTimeout(closeRegisterModal, 1000);
+                setTimeout(closeRegisterModal, 800);
             }
         }
-    }
-
-    function tick() {
-        totalSeconds++;
-        document.getElementById('totalCost').innerText = Math.floor((totalSeconds * 20000) / 3600).toLocaleString();
-        if (timeLeft > 0) timeLeft--; else deviationScore += 0.4;
-        deviationScore = Math.min(100, deviationScore + 0.05);
-        updateUI();
     }
 
     function processMeetingSpeech(text) {
         const logBox = document.getElementById('fullLog');
         const entry = document.createElement('div');
         const time = new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
-        entry.innerHTML = `<span class="text-slate-300 mr-2">${time}</span>${currentSpeaker ? '<b class="text-blue-600">['+currentSpeaker+']</b> ' : ''}${text}`;
+        entry.innerHTML = `<span class="opacity-30 mr-2">${time}</span>${currentSpeaker ? '<b>['+currentSpeaker+']</b> ' : ''}${text}`;
         logBox.prepend(entry);
         if (text.includes("決定") || text.includes("タスク")) addSummaryCard(text, time);
+        updateUI();
     }
 
     function addSummaryCard(text, time) {
         const box = document.getElementById('summaryLog');
         const card = document.createElement('div');
-        card.className = "bg-white p-5 rounded-2xl border-l-8 border-emerald-500 card-shadow border border-slate-100";
-        card.innerHTML = `<div class="flex justify-between items-center mb-2"><span class="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Decision / Action</span><span class="text-[10px] text-slate-300">${time}</span></div><p class="text-sm text-slate-800 font-bold leading-relaxed">${text}</p>`;
+        card.className = "bg-white p-4 rounded-2xl border-l-4 border-blue-500 shadow-sm border border-slate-100";
+        card.innerHTML = `<p class="text-[9px] font-bold text-blue-600 uppercase mb-1">決定事項</p><p class="text-xs text-slate-800 leading-relaxed font-bold">${text}</p>`;
         box.prepend(card);
     }
 
     function setSpeaker(n) {
         currentSpeaker = n;
-        document.querySelectorAll('.speaker-chip').forEach(b => {
-            b.classList.toggle('active', b.innerText === n || (n === null && b.id === 'btn-default'));
-        });
+        document.querySelectorAll('.speaker-chip').forEach(b => b.classList.toggle('active', b.innerText === n || (n === null && b.id === 'btn-default')));
     }
 
     function updateUI() {
@@ -270,12 +226,7 @@
 
     function toggleReport() { document.getElementById('reportDrawer').classList.toggle('open'); }
     function openRegisterModal() { document.getElementById('registerModal').classList.remove('hidden'); }
-    function closeRegisterModal() { 
-        isRegistering = false;
-        document.getElementById('registerModal').classList.add('hidden');
-        document.getElementById('regIndicator').className = "w-24 h-24 rounded-full bg-slate-50 mx-auto mb-6 flex items-center justify-center text-4xl text-slate-300 border-2 border-slate-100 transition-all";
-        document.getElementById('regBtn').innerText = "聞き取り開始";
-    }
+    function closeRegisterModal() { isRegistering = false; document.getElementById('registerModal').classList.add('hidden'); }
 </script>
 </body>
 </html>
