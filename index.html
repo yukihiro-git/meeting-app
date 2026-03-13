@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GIPS & MINUTES v2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+JP:wght@400;900&display=swap');
+        body { background-color: #05070a; color: #e2e8f0; font-family: 'Noto Sans JP', sans-serif; overscroll-behavior: none; }
+        .font-mono-ai { font-family: 'Orbitron', sans-serif; }
+        .glass-panel { background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .speaker-chip { transition: all 0.2s; border: 1px solid rgba(255,255,255,0.1); flex-shrink: 0; }
+        .speaker-chip.active { background: #3b82f6; border-color: #60a5fa; box-shadow: 0 0 15px rgba(59, 130, 246, 0.5); transform: scale(1.05); color: white; }
+        #reportDrawer { transform: translateY(calc(100% - 60px)); transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+        #reportDrawer.open { transform: translateY(15%); }
+        .log-entry { border-bottom: 1px solid rgba(255,255,255,0.05); padding: 12px 0; animation: slideIn 0.3s ease-out; }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+
+    <nav class="p-4 pt-8 flex items-center gap-3 z-10">
+        <div id="speakerList" class="flex gap-2 overflow-x-auto no-scrollbar flex-1">
+            <button onclick="setSpeaker(null)" id="btn-default" class="speaker-chip active px-4 py-2 rounded-2xl text-xs font-bold">
+                <i class="fa-solid fa-users mr-1"></i> 全員
+            </button>
+        </div>
+        <button onclick="openRegisterModal()" class="w-10 h-10 rounded-xl glass-panel flex items-center justify-center text-emerald-400 border-emerald-500/30">
+            <i class="fa-solid fa-microphone-lines"></i>
+        </button>
+    </nav>
+
+    <main class="flex-1 flex flex-col items-center justify-start pt-4 px-6 z-10">
+        <div class="relative flex items-center justify-center mb-6">
+            <svg class="w-64 h-64">
+                <circle class="text-slate-900" stroke-width="6" stroke="currentColor" fill="transparent" r="115" cx="128" cy="128"/>
+                <circle id="devCircle" class="text-emerald-500 transition-all duration-700" stroke-width="10" stroke-dasharray="722" stroke-dashoffset="722" stroke-linecap="round" stroke="currentColor" fill="transparent" r="115" cx="128" cy="128"/>
+            </svg>
+            <div class="absolute flex flex-col items-center">
+                <span id="timerDisplay" class="text-6xl font-mono-ai font-bold text-white tracking-tighter">00:00</span>
+                <div class="flex items-baseline gap-1 text-rose-500 mt-1">
+                    <span class="text-[10px] font-bold uppercase">Loss</span>
+                    <span id="totalCost" class="text-xl font-mono-ai font-bold">0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="text-center w-full mb-6">
+            <h2 id="currentTitle" class="text-xl font-black text-white">話者を登録するか、開始してください</h2>
+            <div id="liveTranscript" class="mt-3 text-xs text-blue-400 italic bg-blue-500/5 py-2 px-4 rounded-full border border-blue-500/10 min-h-[32px]">待機中...</div>
+        </div>
+    </main>
+
+    <div class="fixed bottom-[80px] left-0 w-full px-8 flex gap-4 z-20">
+        <button id="mainBtn" onclick="toggleMeeting()" class="flex-[4] h-16 bg-blue-600 rounded-2xl flex items-center justify-center gap-3 shadow-2xl active:scale-95 transition-all">
+            <i class="fa-solid fa-play text-white"></i>
+            <span class="font-black text-white tracking-widest uppercase">Start Session</span>
+        </button>
+        <button onclick="toggleReport()" class="flex-1 h-16 glass-panel rounded-2xl flex items-center justify-center text-blue-400 active:bg-slate-800">
+            <i class="fa-solid fa-file-invoice text-xl"></i>
+        </button>
+    </div>
+
+    <div id="reportDrawer" class="fixed inset-0 glass-panel rounded-t-[40px] z-30 flex flex-col">
+        <div onclick="toggleReport()" class="w-full h-[60px] flex flex-col items-center justify-center flex-shrink-0">
+            <div class="w-12 h-1.5 bg-slate-700 rounded-full mb-2"></div>
+            <span class="text-[10px] font-bold text-slate-500 uppercase">Minutes Summary & Logs</span>
+        </div>
+        <div class="flex-1 overflow-y-auto px-6 pb-24">
+            <div id="summaryLog" class="space-y-4 pt-4">
+                <p class="text-center text-slate-600 text-xs italic py-10">決定事項や課題がここに抽出されます</p>
+            </div>
+            <div class="mt-8 pt-8 border-t border-slate-800">
+                <h4 class="text-[10px] font-bold text-slate-500 uppercase mb-4 tracking-widest">Full Transcript</h4>
+                <div id="fullLog" class="space-y-1 font-mono text-[12px] text-slate-400"></div>
+            </div>
+        </div>
+        <div class="p-6 bg-slate-900/90 border-t border-slate-800">
+            <button onclick="copyMinutes()" class="w-full py-4 bg-blue-600 text-white font-bold rounded-xl flex items-center justify-center gap-2">
+                <i class="fa-solid fa-copy"></i> 議事録をエクスポート
+            </button>
+        </div>
+    </div>
+
+    <div id="registerModal" class="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-8 hidden backdrop-blur-md">
+        <div class="w-full max-w-sm glass-panel p-8 rounded-[40px] border border-emerald-500/30 text-center">
+            <div id="regIcon" class="w-20 h-20 rounded-full bg-slate-800 mx-auto mb-6 flex items-center justify-center text-3xl text-slate-500 transition-all">
+                <i class="fa-solid fa-microphone"></i>
+            </div>
+            <h3 class="text-xl font-black text-white mb-2">音声で話者登録</h3>
+            <p class="text-xs text-slate-400 mb-8 leading-relaxed">
+                「私は<b>〇〇</b>です」とスマホに話しかけてください。<br>AIが名前を自動的に抽出します。
+            </p>
+            <p id="regResult" class="text-emerald-400 font-bold mb-8 h-6 italic">聞き取り待機中...</p>
+            <div class="space-y-3">
+                <button id="regBtn" onclick="startAutoRegister()" class="w-full py-5 bg-emerald-600 text-white font-black rounded-2xl shadow-lg active:scale-95 transition-all uppercase tracking-widest">録音開始</button>
+                <button onclick="closeRegisterModal()" class="w-full py-4 text-slate-500 font-bold">完了して会議に戻る</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+    let isRunning = false;
+    let isRegistering = false;
+    let currentSpeaker = null;
+    let deviationScore = 0;
+    let totalSeconds = 0;
+    let recognition;
+    let timerInterval;
+    let speakers = [];
+
+    window.onload = () => {
+        if ('webkitSpeechRecognition' in window) {
+            recognition = new webkitSpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = 'ja-JP';
+
+            recognition.onresult = (event) => {
+                let final = "";
+                let interim = "";
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) final += event.results[i][0].transcript;
+                    else interim += event.results[i][0].transcript;
+                }
+                
+                if (isRegistering && final) {
+                    processAutoRegister(final);
+                } else if (isRunning) {
+                    if (interim) document.getElementById('liveTranscript').innerText = interim;
+                    if (final) processMeetingSpeech(final);
+                }
+            };
+            recognition.onend = () => { if(isRunning || isRegistering) recognition.start(); };
+        }
+    };
+
+    // --- 音声による自動登録 (Original Logic) ---
+    function startAutoRegister() {
+        isRegistering = true;
+        recognition.start();
+        document.getElementById('regIcon').classList.add('bg-rose-600', 'text-white', 'animate-pulse');
+        document.getElementById('regBtn').innerText = "聞き取り中...";
+        document.getElementById('regResult').innerText = "お名前をどうぞ...";
+    }
+
+    function processAutoRegister(text) {
+        // 「私は〇〇です」「〇〇と言います」等から名前を抽出
+        let name = text.replace(/私は|です|と申します|と言います|だ|よ|えー|あの/g, "").trim();
+        if (name.length > 0 && name.length < 10) {
+            addSpeakerChip(name);
+            document.getElementById('regResult').innerText = `「${name}」さんを登録しました！`;
+            // 登録ごとにバイブレーションでフィードバック
+            if (navigator.vibrate) navigator.vibrate(50);
+        }
+    }
+
+    function addSpeakerChip(name) {
+        if (speakers.includes(name)) return;
+        speakers.push(name);
+        const list = document.getElementById('speakerList');
+        const btn = document.createElement('button');
+        btn.className = "speaker-chip px-4 py-2 rounded-2xl text-xs font-bold bg-slate-800/50 text-slate-300";
+        btn.innerText = name;
+        btn.onclick = () => setSpeaker(name);
+        list.appendChild(btn);
+    }
+
+    // --- 会議コントロール ---
+    function toggleMeeting() {
+        const btn = document.getElementById('mainBtn');
+        if (!isRunning) {
+            isRunning = true;
+            btn.innerHTML = '<i class="fa-solid fa-stop text-white"></i> <span class="text-white">Finish</span>';
+            btn.classList.replace('bg-blue-600', 'bg-rose-600');
+            recognition.start();
+            timerInterval = setInterval(tick, 1000);
+            document.getElementById('currentTitle').innerText = "議論をモニタリング中...";
+        } else {
+            isRunning = false;
+            btn.innerHTML = '<i class="fa-solid fa-play text-white"></i> <span class="text-white">Restart</span>';
+            btn.classList.replace('bg-rose-600', 'bg-blue-600');
+            recognition.stop();
+            clearInterval(timerInterval);
+        }
+    }
+
+    function processMeetingSpeech(text) {
+        document.getElementById('liveTranscript').innerText = text;
+        const time = new Date().toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'});
+        
+        // ログ保存
+        const logBox = document.getElementById('fullLog');
+        const speakerTag = currentSpeaker ? `<b class="text-blue-400">[${currentSpeaker}]</b> ` : "";
+        const entry = document.createElement('div');
+        entry.className = "log-entry";
+        entry.innerHTML = `<span class="opacity-30 mr-2">${time}</span>${speakerTag}${text}`;
+        logBox.prepend(entry);
+
+        // 決定事項抽出
+        if (text.includes("決定") || text.includes("タスク") || text.includes("期限")) {
+            addSummaryCard(text, time, "決定事項", "fa-check-circle text-emerald-400");
+            deviationScore = Math.max(0, deviationScore - 15);
+        } else if (text.includes("課題") || text.includes("問題")) {
+            addSummaryCard(text, time, "課題・論点", "fa-circle-exclamation text-amber-400");
+        }
+        
+        updateUI();
+    }
+
+    function addSummaryCard(text, time, title, icon) {
+        const box = document.getElementById('summaryLog');
+        if (box.querySelector('p.italic')) box.innerHTML = "";
+        const card = document.createElement('div');
+        card.className = "bg-slate-800/40 p-4 rounded-2xl border-l-4 border-blue-500 animate-slide-in";
+        card.innerHTML = `
+            <div class="flex justify-between items-center mb-1">
+                <span class="text-[10px] font-bold text-slate-500 uppercase"><i class="fa-solid ${icon} mr-1"></i> ${title}</span>
+                <span class="text-[10px] text-slate-600">${time}</span>
+            </div>
+            <p class="text-sm text-slate-200">${currentSpeaker ? '<b>'+currentSpeaker+':</b> ' : ''}${text}</p>
+        `;
+        box.prepend(card);
+    }
+
+    function tick() {
+        totalSeconds++;
+        const cost = Math.floor((totalSeconds * 5000 * 4) / 3600);
+        document.getElementById('totalCost').innerText = cost.toLocaleString();
+        
+        deviationScore = Math.min(100, deviationScore + 0.08);
+        updateUI();
+    }
+
+    function updateUI() {
+        const circle = document.getElementById('devCircle');
+        const circumference = 115 * 2 * Math.PI;
+        circle.style.strokeDashoffset = circumference - (deviationScore / 100) * circumference;
+        
+        if (deviationScore > 80) circle.style.color = "#f43f5e";
+        else if (deviationScore > 40) circle.style.color = "#fbbf24";
+        else circle.style.color = "#10b981";
+    }
+
+    function setSpeaker(name) {
+        currentSpeaker = name;
+        document.querySelectorAll('.speaker-chip').forEach(btn => {
+            btn.classList.toggle('active', (name === null && btn.id === 'btn-default') || btn.innerText === name);
+        });
+    }
+
+    function toggleReport() { document.getElementById('reportDrawer').classList.toggle('open'); }
+    function openRegisterModal() { document.getElementById('registerModal').classList.remove('hidden'); }
+    function closeRegisterModal() { 
+        isRegistering = false;
+        document.getElementById('registerModal').classList.add('hidden'); 
+    }
+    
+    function copyMinutes() {
+        const content = document.getElementById('summaryLog').innerText;
+        navigator.clipboard.writeText(content).then(() => alert("要約をコピーしました"));
+    }
+</script>
+</body>
+</html>
