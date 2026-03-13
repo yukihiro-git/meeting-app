@@ -3,30 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>GIPS Mobile Professional</title>
+    <title>GIPS Visualizer Edition</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Noto+Sans+JP:wght@400;700;900&display=swap');
-        
         body { background-color: #f8fafc; color: #1e293b; font-family: 'Noto Sans JP', sans-serif; height: 100vh; overflow: hidden; }
         .font-mono-ai { font-family: 'Orbitron', sans-serif; }
-        
-        /* 話者ドック */
         .speaker-dock { display: flex; gap: 8px; overflow-x: auto; padding: 12px 16px; background: #fff; border-bottom: 1px solid #e2e8f0; }
         .speaker-chip { flex: 0 0 auto; padding: 8px 16px; border-radius: 12px; background: #f1f5f9; font-size: 12px; font-weight: 700; border: 2px solid #e2e8f0; color: #64748b; }
         .speaker-chip.active { background: #2563eb; color: #fff; border-color: #2563eb; }
-
-        /* 議題編集モーダル（2段レイアウト） */
         #agendaModal { position: fixed; inset: 0; background: #fff; z-index: 200; display: none; flex-direction: column; }
         #agendaModal.open { display: flex; }
         .agenda-card { background: #f8fafc; border: 2px solid #f1f5f9; border-radius: 20px; padding: 16px; margin-bottom: 12px; }
-
-        /* 議事録ドロワー */
         #reportDrawer { position: fixed; bottom: 0; left: 0; width: 100%; height: 85vh; background: #fff; transform: translateY(calc(100% - 60px)); transition: transform 0.4s cubic-bezier(0.1, 0.7, 0.1, 1); z-index: 80; border-radius: 32px 32px 0 0; box-shadow: 0 -10px 40px rgba(0,0,0,0.05); }
         #reportDrawer.open { transform: translateY(15%); }
-
         .no-scrollbar::-webkit-scrollbar { display: none; }
+
+        /* ビジュアライザーのスタイル */
+        .visualizer-container { display: flex; align-items: center; justify-content: center; gap: 4px; height: 32px; }
+        .vis-bar { width: 4px; height: 4px; background: #2563eb; border-radius: 2px; transition: height 0.1s ease; opacity: 0.3; }
+        .recording .vis-bar { opacity: 1; }
     </style>
 </head>
 <body class="flex flex-col">
@@ -38,9 +35,9 @@
     </div>
 
     <main class="flex-1 flex flex-col p-6 overflow-hidden">
-        <div class="flex justify-between items-center mb-6" onclick="openAgendaModal()">
+        <div class="flex justify-between items-center mb-4" onclick="openAgendaModal()">
             <div class="flex-1">
-                <p class="text-[10px] font-bold text-blue-600 uppercase tracking-widest mb-1">Current Agenda <i class="fa-solid fa-pen-to-square ml-1 text-[8px]"></i></p>
+                <p class="text-[10px] font-bold text-blue-600 uppercase mb-1">Current Agenda <i class="fa-solid fa-pen"></i></p>
                 <h2 id="currentTitle" class="text-xl font-black text-slate-900 leading-tight truncate pr-4">議題をタップして設定</h2>
             </div>
             <div class="bg-rose-50 px-4 py-2 rounded-2xl border border-rose-100 text-right">
@@ -49,36 +46,39 @@
             </div>
         </div>
 
-        <div class="relative flex items-center justify-center mb-6">
-            <svg class="w-64 h-64">
-                <circle class="text-slate-100" stroke-width="8" stroke="currentColor" fill="transparent" r="110" cx="128" cy="128"/>
-                <circle id="devCircle" class="text-blue-600 transition-all duration-700" stroke-width="12" stroke-dasharray="691" stroke-dashoffset="691" stroke-linecap="round" stroke="currentColor" fill="transparent" r="110" cx="128" cy="128"/>
+        <div class="relative flex items-center justify-center mb-2">
+            <svg class="w-60 h-60">
+                <circle class="text-slate-100" stroke-width="8" stroke="currentColor" fill="transparent" r="105" cx="120" cy="120"/>
+                <circle id="devCircle" class="text-blue-600 transition-all duration-700" stroke-width="12" stroke-dasharray="660" stroke-dashoffset="660" stroke-linecap="round" stroke="currentColor" fill="transparent" r="105" cx="120" cy="120"/>
             </svg>
             <div class="absolute flex flex-col items-center">
                 <span id="timerDisplay" class="text-6xl font-mono-ai font-bold text-slate-900 tracking-tighter">00:00</span>
-                <span id="devPercent" class="text-[10px] font-bold text-slate-400 mt-2 uppercase tracking-widest">Deviation 0%</span>
+                <span id="devPercent" class="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">Deviation 0%</span>
             </div>
         </div>
 
-        <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm flex-1 flex items-center justify-center text-center">
-            <p id="liveTranscript" class="text-sm text-slate-400 italic">音声を待機中...</p>
+        <div id="visualizer" class="visualizer-container mb-4">
+            <div class="vis-bar"></div>
+            <div class="vis-bar"></div>
+            <div class="vis-bar"></div>
+            <div class="vis-bar"></div>
+            <div class="vis-bar"></div>
+        </div>
+
+        <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm flex-1 flex items-center justify-center text-center overflow-hidden">
+            <p id="liveTranscript" class="text-sm text-slate-400 italic">Startボタンで記録開始</p>
         </div>
     </main>
 
     <div id="agendaModal">
         <div class="p-6 pt-12 flex justify-between items-center border-b bg-white sticky top-0 z-10">
-            <h3 class="text-xl font-black text-slate-900 italic">議題の構成</h3>
+            <h3 class="text-xl font-black text-slate-900">議題の構成</h3>
             <button onclick="closeAgendaModal()" class="text-slate-400 text-2xl p-2"><i class="fa-solid fa-xmark"></i></button>
         </div>
-        <div class="flex-1 overflow-y-auto p-6 space-y-4" id="agendaInputList">
-            </div>
+        <div class="flex-1 overflow-y-auto p-6 space-y-4" id="agendaInputList"></div>
         <div class="p-6 bg-slate-50 border-t space-y-3 pb-12">
-            <button onclick="addAgendaRow()" class="w-full py-4 bg-white border-2 border-slate-200 rounded-2xl text-slate-600 font-bold text-sm shadow-sm active:bg-slate-50">
-                <i class="fa-solid fa-plus mr-1 text-blue-500"></i> 新しい議題を追加
-            </button>
-            <button onclick="saveAgendas()" class="w-full py-5 bg-blue-600 text-white font-black rounded-2xl text-lg shadow-xl active:scale-95 transition-all">
-                設定を保存して戻る
-            </button>
+            <button onclick="addAgendaRow()" class="w-full py-4 bg-white border-2 border-slate-200 rounded-2xl text-slate-600 font-bold text-sm shadow-sm active:bg-slate-50">+ 議題を追加</button>
+            <button onclick="saveAgendas()" class="w-full py-5 bg-blue-600 text-white font-black rounded-2xl text-lg shadow-xl">設定を保存</button>
         </div>
     </div>
 
@@ -102,7 +102,7 @@
 
     <div class="fixed bottom-10 left-0 w-full px-8 flex gap-4 z-[90]">
         <button id="mainBtn" onclick="toggleMeeting()" class="flex-[3] h-18 bg-blue-600 text-white rounded-3xl flex items-center justify-center gap-3 shadow-2xl active:scale-95 transition-all">
-            <i class="fa-solid fa-play text-xl"></i><span class="text-lg font-black uppercase tracking-tight">Meeting Start</span>
+            <i class="fa-solid fa-play text-xl"></i><span class="text-lg font-black uppercase tracking-tight">Start</span>
         </button>
         <button onclick="openRegisterModal()" class="flex-1 h-18 bg-white text-blue-600 rounded-3xl flex items-center justify-center border-2 border-blue-50 shadow-lg active:scale-95 transition-all">
             <i class="fa-solid fa-user-plus text-2xl"></i>
@@ -112,6 +112,35 @@
 <script>
     let isRunning = false, isRegistering = false, currentIdx = 0, totalSeconds = 0, deviationScore = 0, recognition, timerInterval, timeLeft = 0, agendas = [];
     let currentSpeaker = null, speakers = [];
+    let audioContext, analyser, dataArray, source;
+
+    // ビジュアライザー開始
+    async function startVisualizer() {
+        if (!audioContext) {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioContext.createAnalyser();
+            analyser.fftSize = 32;
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            source = audioContext.createMediaStreamSource(stream);
+            source.connect(analyser);
+            dataArray = new Uint8Array(analyser.frequencyBinCount);
+            drawVisualizer();
+        }
+    }
+
+    function drawVisualizer() {
+        requestAnimationFrame(drawVisualizer);
+        if (!isRunning && !isRegistering) {
+            document.querySelectorAll('.vis-bar').forEach(bar => bar.style.height = '4px');
+            return;
+        }
+        analyser.getByteFrequencyData(dataArray);
+        const bars = document.querySelectorAll('.vis-bar');
+        bars.forEach((bar, i) => {
+            const val = dataArray[i] / 2;
+            bar.style.height = Math.max(4, val) + 'px';
+        });
+    }
 
     window.onload = () => {
         addAgendaRow("議題1", 10);
@@ -136,26 +165,22 @@
 
     function openAgendaModal() { document.getElementById('agendaModal').classList.add('open'); }
     function closeAgendaModal() { document.getElementById('agendaModal').classList.remove('open'); }
-
     function addAgendaRow(title="", time=10) {
         const container = document.getElementById('agendaInputList');
         const card = document.createElement('div');
         card.className = "agenda-card space-y-4 shadow-sm relative";
         card.innerHTML = `
             <div class="flex flex-col gap-2">
-                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">議題のタイトル</label>
-                <input type="text" placeholder="例：進捗の共有" value="${title}" class="w-full bg-white border-b-2 border-slate-200 py-2 text-slate-900 font-bold text-lg outline-none focus:border-blue-500">
+                <input type="text" placeholder="議題の内容" value="${title}" class="w-full bg-white border-b-2 border-slate-200 py-2 text-slate-900 font-bold text-lg outline-none focus:border-blue-500">
             </div>
             <div class="flex items-end justify-between">
-                <div class="flex flex-col gap-2">
-                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">配分時間 (分)</label>
-                    <div class="flex items-center gap-4 bg-white rounded-xl p-1 border">
-                        <button onclick="adjustTime(this, -1)" class="w-10 h-10 flex items-center justify-center text-blue-500 bg-blue-50 rounded-lg active:scale-90 transition"><i class="fa-solid fa-minus"></i></button>
-                        <input type="number" value="${time}" class="w-12 text-center font-mono font-black text-blue-600 bg-transparent outline-none">
-                        <button onclick="adjustTime(this, 1)" class="w-10 h-10 flex items-center justify-center text-blue-500 bg-blue-50 rounded-lg active:scale-90 transition"><i class="fa-solid fa-plus"></i></button>
-                    </div>
+                <div class="flex items-center gap-4 bg-white rounded-xl p-1 border">
+                    <button onclick="adjustTime(this, -1)" class="w-10 h-10 flex items-center justify-center text-blue-500 bg-blue-50 rounded-lg active:scale-90 transition"><i class="fa-solid fa-minus"></i></button>
+                    <input type="number" value="${time}" class="w-10 text-center font-mono font-black text-blue-600 bg-transparent outline-none">
+                    <button onclick="adjustTime(this, 1)" class="w-10 h-10 flex items-center justify-center text-blue-500 bg-blue-50 rounded-lg active:scale-90 transition"><i class="fa-solid fa-plus"></i></button>
+                    <span class="pr-3 text-[10px] text-slate-400 font-bold">min</span>
                 </div>
-                <button onclick="this.closest('.agenda-card').remove()" class="text-rose-400 p-2 text-sm"><i class="fa-solid fa-trash-can mr-1"></i> 削除</button>
+                <button onclick="this.closest('.agenda-card').remove()" class="text-rose-400 p-2 text-sm"><i class="fa-solid fa-trash-can mr-1"></i></button>
             </div>
         `;
         container.appendChild(card);
@@ -172,33 +197,31 @@
             title: card.querySelector('input[type="text"]').value || "未設定",
             time: parseInt(card.querySelector('input[type="number"]').value) || 1
         }));
-        if(agendas.length > 0) {
-            currentIdx = 0;
-            updateAgendaUI();
-            closeAgendaModal();
-        }
+        if(agendas.length > 0) { currentIdx = 0; updateAgendaUI(); closeAgendaModal(); }
     }
 
     function updateAgendaUI() {
         if(agendas[currentIdx]) {
             document.getElementById('currentTitle').innerText = agendas[currentIdx].title;
-            timeLeft = agendas[currentIdx].time * 60;
-            updateUI();
+            timeLeft = agendas[currentIdx].time * 60; updateUI();
         }
     }
 
-    function toggleMeeting() {
+    async function toggleMeeting() {
         const btn = document.getElementById('mainBtn');
         if (!isRunning) {
             if(agendas.length === 0) { openAgendaModal(); return; }
+            await startVisualizer();
             isRunning = true;
+            document.getElementById('visualizer').classList.add('recording');
             btn.innerHTML = '<i class="fa-solid fa-stop text-xl"></i> <span class="uppercase">Finish</span>';
             btn.classList.replace('bg-blue-600', 'bg-rose-600');
             recognition.start();
             timerInterval = setInterval(tick, 1000);
         } else {
             isRunning = false;
-            btn.innerHTML = '<i class="fa-solid fa-play text-xl"></i> <span class="uppercase">Meeting Start</span>';
+            document.getElementById('visualizer').classList.remove('recording');
+            btn.innerHTML = '<i class="fa-solid fa-play text-xl"></i> <span class="uppercase">Start</span>';
             btn.classList.replace('bg-rose-600', 'bg-blue-600');
             recognition.stop();
             clearInterval(timerInterval);
@@ -213,10 +236,13 @@
         updateUI();
     }
 
-    function startAutoRegister() {
-        isRegistering = true; recognition.start();
+    async function startAutoRegister() {
+        await startVisualizer();
+        isRegistering = true;
+        document.getElementById('visualizer').classList.add('recording');
+        recognition.start();
         document.getElementById('regIndicator').classList.add('bg-blue-600', 'text-white', 'border-blue-600', 'animate-pulse');
-        document.getElementById('regBtn').innerText = "お名前を聞いています...";
+        document.getElementById('regBtn').innerText = "認識中...";
     }
 
     function processAutoRegister(text) {
@@ -258,7 +284,7 @@
     }
 
     function updateUI() {
-        const circle = document.getElementById('devCircle'), circum = 691;
+        const circle = document.getElementById('devCircle'), circum = 660;
         circle.style.strokeDashoffset = circum - (deviationScore/100) * circum;
         document.getElementById('devPercent').innerText = `Deviation ${Math.floor(deviationScore)}%`;
         circle.style.color = deviationScore > 80 ? "#e11d48" : (deviationScore > 40 ? "#f59e0b" : "#2563eb");
@@ -268,7 +294,11 @@
 
     function toggleReport() { document.getElementById('reportDrawer').classList.toggle('open'); }
     function openRegisterModal() { document.getElementById('registerModal').classList.remove('hidden'); }
-    function closeRegisterModal() { isRegistering = false; document.getElementById('registerModal').classList.add('hidden'); }
+    function closeRegisterModal() { 
+        isRegistering = false; 
+        document.getElementById('visualizer').classList.remove('recording');
+        document.getElementById('registerModal').classList.add('hidden'); 
+    }
 </script>
 </body>
 </html>
